@@ -16,6 +16,7 @@ use App\Services\EmojiShortcodes;
 use App\Services\TheAlgorithm;
 use App\Services\Urls;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Image\Image as ProcessedImage;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommit
@@ -25,6 +26,7 @@ final readonly class CreateCommit
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
+        private CreateCommitAnimations $createCommitAnimations,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
@@ -37,10 +39,11 @@ final readonly class CreateCommit
     /**
      * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
      *
-     * @param  list<UploadedFile>  $images
+     * @param  array<int, UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  array<int, array{file: UploadedFile, width: int, height: int, poster: ProcessedImage}>  $animations
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null, array $animations = []): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -48,7 +51,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $series): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $series, $animations): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
 
@@ -67,6 +70,10 @@ final readonly class CreateCommit
             ]);
 
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
+
+            foreach ($animations as $position => $animation) {
+                $this->createCommitAnimations->handle($commit, $animation, $imageDescriptions[$position] ?? null, $position);
+            }
 
             if ($poll instanceof NewPoll) {
                 $this->createPoll($commit, $poll);

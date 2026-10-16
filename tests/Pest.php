@@ -44,6 +44,11 @@ function sshFixture(string $name): string
     return (string) file_get_contents(__DIR__.'/Fixtures/ssh/'.$name);
 }
 
+function mediaFixture(string $name): string
+{
+    return (string) file_get_contents(__DIR__.'/Fixtures/media/'.$name);
+}
+
 /**
  * @param  array<string, mixed>  $account
  */
